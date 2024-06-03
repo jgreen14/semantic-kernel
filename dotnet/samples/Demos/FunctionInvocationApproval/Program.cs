@@ -4,6 +4,7 @@ using FunctionInvocationApproval.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 
 namespace FunctionInvocationApproval;
@@ -40,14 +41,31 @@ internal sealed class Program
             ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
         };
 
-        // Initialize kernel arguments.
-        var arguments = new KernelArguments(executionSettings);
+        ChatHistory chatHistory = [];
+
+        chatHistory.AddSystemMessage("You are an assistant to help build software from the first step.");
+        chatHistory.AddUserMessage("Let's start building a new program!");
+
+        var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
         // Start execution
         // Try to reject invocation at each stage to compare LLM results.
-        var result = await kernel.InvokePromptAsync("I want to build a software. Let's start from the first step.", arguments);
+        var result = await chatCompletionService.GetChatMessageContentsAsync(chatHistory, executionSettings, kernel);
+        string? input = null;
 
-        Console.WriteLine(result);
+        while (true)
+        {
+            Console.WriteLine(result[0]);
+            input = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                // Leaves if the user hit enter without typing any word
+                break;
+            }
+            chatHistory.AddUserMessage(input);
+
+            result = await chatCompletionService.GetChatMessageContentsAsync(chatHistory, executionSettings, kernel);
+        }
     }
 
     #region Plugins
